@@ -7,9 +7,13 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.test.*;
@@ -36,7 +40,8 @@ public class TestServer {
 			
 			System.out.print("Enter Qty : ");
 			int qty = Integer.parseInt(br.readLine());
-			generatePojoMap(Integer.parseInt(i), qty);
+			ConcurrentHashMap cmap = (ConcurrentHashMap) generatePojoMap(Integer.parseInt(i), qty);
+			System.out.println("Map size: " + cmap.size());
 			
 			System.out.print("Enter input : ");
 		}
@@ -56,11 +61,44 @@ public class TestServer {
 	public static Map generatePojoMap(int opt, int vol) {
 		cPojoMap = new ConcurrentHashMap();
 		assignedPojoMapForTest = cPojoMap;
-		
+		Date startDate = new Date();
 		DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-		AtomicLong atomicLong = new AtomicLong();
-		System.out.println(("Start generating pojo map").concat(dateFormat.format(new Date())));
-		ExecutorService executor = Executors.newFixedThreadPool(NB_THREADS);
+		final AtomicLong atomicLong = new AtomicLong(1);
+		final int keyOpt = opt;
+		System.out.println(("Start generating pojo map").concat(dateFormat.format(startDate)));
+		
+		final ExecutorService pool = Executors.newFixedThreadPool(NB_THREADS);
+		final ExecutorCompletionService<String> completionService = new ExecutorCompletionService<String>(pool);
+		
+		for(int i=0; i< vol; i++) {
+			completionService.submit(new Callable<String>() {
+				public String call() throws Exception {
+			    	return new WorkerThread(assignedPojoMapForTest, atomicLong.getAndIncrement(), keyOpt).run();
+			    }
+			});
+		}
+		
+		for(int i=0; i< vol; i++) {
+			try{
+				final Future<String> future = completionService.take();
+			    try {
+			        final String content = future.get();
+			        if(i==(vol-1)) {
+			        	Date endDate = new Date();
+			        	Long timeTaken = (endDate.getTime() - startDate.getTime())/1000;
+			        	System.out.println("End loading of Pojo in map: ".concat(dateFormat.format(endDate)) );
+			    		System.out.println("Final cPojoMap size: " + cPojoMap.size());
+			    		System.out.println("Total processing time: " + timeTaken + "s");	
+			        }
+			    } catch (ExecutionException e) {
+			        System.out.println("Error while executing: ".concat(e.getMessage()));
+			    }
+			} catch (InterruptedException e) {
+				 System.out.println("Error while processing: ".concat(e.getMessage()));
+		    }
+        }
+		
+		/*
 		for (int j = 0; j < NB_THREADS; j++) {
 			if(j>0) {
 				atomicLong = new AtomicLong((vol/NB_THREADS)*j);
@@ -71,18 +109,15 @@ public class TestServer {
             Runnable worker = new WorkerThread(assignedPojoMapForTest, atomicLong, threadVol, opt);
             executor.execute(worker);              
 		}
+		*/
 		
 		// This will make the executor accept no new threads
         // and finish all existing threads in the queue
-        executor.shutdown();
+        //executor.shutdown();
         // Wait until all threads are finish
-        while (!executor.isTerminated()) {
-        }
+        //while (!executor.isTerminated()) {
+        //}
         
-		System.out.println("End loading of Pojo in map: ".concat(dateFormat.format(new Date())) );
-		System.out.println("cPojoMap size: " + cPojoMap.size());
-		
-		
-		return cPojoMap;
+		return assignedPojoMapForTest;
 	}
 }
