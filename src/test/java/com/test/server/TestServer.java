@@ -88,7 +88,7 @@ public class TestServer {
 			        	Long timeTaken = (endDate.getTime() - startDate.getTime())/1000;
 			        	System.out.println("End loading of Pojo in map: ".concat(dateFormat.format(endDate)) );
 			    		System.out.println("Final cPojoMap size: " + cPojoMap.size());
-			    		System.out.println("Total processing time: " + timeTaken + "s");	
+			    		System.out.println("Total processing time: " + timeTaken + "s");
 			        }
 			    } catch (ExecutionException e) {
 			        System.out.println("Error while executing: ".concat(e.getMessage()));
@@ -98,6 +98,7 @@ public class TestServer {
 		    }
         }
 		
+		pool.shutdownNow();
 		/*
 		for (int j = 0; j < NB_THREADS; j++) {
 			if(j>0) {
